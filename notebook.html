@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <link rel="stylesheet" href="./css/notebook.css">
+    <script src="https://cn.vuejs.org/js/vue.js"></script>
+    <style>
+      *{
+          padding: 0;
+          margin: 0;
+          box-sizing: border-box;
+      }
+      ul,li{
+          list-style: none;
+      }
+      a{
+          text-decoration: none;
+      }
+      [v-cloak] {
+            display: none;
+        }
+    </style>
+</head>
+<body style="background-color:#f5f5f5;">
+<div id="app" v-cloak>
+        <!-- 标题开始 -->
+        <header class="todos-nav">
+           <h1>todos清单</h1>
+        </header>
+        <!-- 标题结束 -->
+        <!-- 内容部分开始 -->
+       <section class="todos-content">
+           <!-- 内容顶部开始 -->
+           <section class="todos-top">
+               <section :class="['left',{allcheck:allChecked}]" @click.stop="allCheck">
+                >
+               </section>
+               <section class="right">
+                <input
+                v-focus
+                type="text"
+                class="new-todo"
+                placeholder="What needs to be done?"
+                v-model="inputVal"
+                @keyup.enter="addTodo"
+                @input="showTips"
+              />
+              <ul :class='["hidden",{show:inputting}]'>
+                <li v-for="tip,index in tips"
+                @click.stop="addTodoFromTip(tip)"
+                >{{tip}}</li>
+            </ul>
+               </section>
+           </section>
+           <!-- 内容顶部结束 -->
+           <!-- 内容底部开始 -->
+           <section class="todos-bottom">
+                 <ul class="todos-list">
+                    <li class="todos-list-item" v-for="item,index in filtertTodos">
+                      <section class="left">
+                      <input class="toggle" type="checkbox" v-model='item.completed'/>
+                      </section>
+                      <section :class="['middle',{completed:item.completed},
+                        {hidden:edit_index==index}]"
+                      @dblclick="editTodo(index)"
+                      >
+                      {{item.content}}
+                    </section>
+                    <section :class="['middle','hidden',{show:edit_index==index}]">
+                        <input type="text" v-model="item.content" @keyup.enter="editTodos(index)"
+                        @blur.enter="editTodos(index)" @keyup.esc="removTodos(index)">
+                    </section>
+                      <button class="right" @click="delTodos(index)">X</button>
+                  </li>
+                 </ul>
+           </section>
+           <!-- 内容底部结束 -->
+       </section>
+       <!-- 内容部分结束 -->
+       <!-- 底部的功能栏开始 -->
+       <footer class="footer">
+            <section class="left">
+                <span>剩下{{remain.length}}项</span>
+            </section>
+                <ul class="conent-list">
+                   <li :class="['conent-item-all',{
+                    active:visibility=='all'}]">
+                       <a href="#/all">All</a>
+                    </li>
+                   <li :class="['conent-item-active',{
+                    active:visibility=='active'}]">
+                       <a href="#/active">激活</a>
+                   </li>
+                   <li :class="['conent-item-finish',{
+                    active:visibility=='finish'}]">
+                       <a href="#/finish">完成</a>
+                   </li>
+                </ul>
+            <section class="right" @click.stop="cleanTodos">
+                清除已完成
+            </section>
+       </footer>
+       <!-- 底部的功能栏结束 -->
+</div>
+</body>
+<script>
+    //定义一个本地存储工具
+    let storageKey = "mytodos";
+    storageFunc = {
+        // 获取数据
+        fetch: function () {
+            return JSON.parse(localStorage.getItem(storageKey) || '[]');
+        },
+        save: function (todos) {
+            localStorage.setItem(storageKey, JSON.stringify(todos));
+        }
+    }
+   let app = new Vue({
+       el:"#app",
+       //观察模式
+       watch: {
+            todos: {
+                handler(todos) {
+                    storageFunc.save(todos);
+                },
+                deep: true
+            }
+        },
+       computed: {
+        //    下拉框
+        tips: function () {
+                let tips = [];// 存下拉框提示的
+                this.todos.forEach((v, i) => {
+                    if (v.content.indexOf(this.inputVal) != -1) {
+                        tips.push(v.content);
+                    }
+                })
+                return tips;
+            },
+            //过滤之后的 todos
+        //    过滤之后的todos
+        filtertTodos:function(){
+            if (this.visibility == "all") {
+                    return this.todos;
+                } else if (this.visibility == "active") {
+                    return this.todos.filter(function (v, i) {
+                        return !v.completed;// 激活项
+                    })
+                } else {
+                    return this.todos.filter(function (v, i) {
+                        return v.completed;// 完成项目
+                    })
+                }
+        },
+        //    优化选项
+        allChecked:function(){
+            let allChecked = true;//默认全选
+            this.todos.map(function(v,i){
+                if(!v.completed){
+                    allChecked = false;
+                }
+            })
+            return allChecked;
+        },
+        remain:function(){
+            let remain = this.todos.filter((v,i)=>{
+                return !v.completed
+            })
+            return remain;
+        }
+       },
+       data:{
+           inputting:false,
+          visibility:"all",//all代表active激活项
+          allcheckb:false,
+          inputVal:"",//输入框的值
+          allCheckLabel: false,
+          edit_index: -1,//表示没有编辑的项
+          save_content:"",
+          todos: storageFunc.fetch()
+       },
+       directives:{
+            "focus":{
+                inserted:function(el,binding){
+                    el.focus();
+                }
+            }
+        },
+       methods: {
+        // 提示输入确定
+        addTodoFromTip:function(tip){
+                this.todos.push({
+                    content:tip,
+                    id:Date.now(),
+                    completed:false
+                })
+                this.inputting = false;
+            },
+            showTips: function () {
+                // 表示 顶部输入框 正在输入
+                this.inputting = true;
+            },
+        //    清除完成事件
+        cleanTodos:function(index){
+            let finish_todos = this.todos.filter(function (v, i) {
+                    // 未完成的项目
+                    return !v.completed
+                })
+                this.todos = finish_todos;
+        },
+        //    删除功能
+        delTodos:function(index){
+            this.todos.splice(index,1);
+        },
+        //    返回事件
+        removTodos:function(index){
+            this.todos[index].content = this.save_content;
+            this.save_content= "";//清空编辑 内容的缓存
+            this.edit_index = -1;//奇效编辑
+            console.log(this.todos[index].content)
+        },
+        //    输入框编辑事件
+        editTodos:function(index){
+            if(!this.todos[index].content){
+                this.todos.splice(index,1);
+            }
+            this.edit_index = -1;//取消编辑状态
+        },
+        //    编辑事件
+        editTodo:function(index){
+              this.edit_index = index;
+            //   保留之前编辑的值
+              this.save_content = this.todos[index].content
+        },
+        //    全选
+        allCheck:function(){
+           this.todos.forEach((v, i) => {
+               v.completed = !this.allCheckLabel;
+           })
+           this.allCheckLabel = !this.allCheckLabel;
+        },
+        //    新建的todos
+        addTodo:function(){
+            console.log(this.inputVal)
+            if(!this.inputVal.trim()){
+                alert("不能为空")
+                return
+            }
+            this.todos.push({
+                id:Date.now(),//当前的事件戳
+                content: this.inputVal,
+                completed: false // true 完成 　false　激活
+            })
+            // 输入完将内容清空
+            this.inputVal = "";
+        }
+       },
+   })
+    function handleHashChange(){
+        //清空hash
+        window.l1.hash = ""
+        app.visibility = "all";
+    }
+    // 检测 hash 的变化
+    window.addEventListener("hashchange", function () {
+        console.log(window.location.hash);
+        let visibility =  window.location.hash.replace("#/", "");
+        if(!visibility){
+            app.visibility = all
+        }else{
+            app.visibility = visibility
+        }
+        app.visibility = window.location.hash.replace("#/", "")
+    })
+   // app.visibility = "all";
+</script>
+</html>
